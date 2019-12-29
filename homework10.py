@@ -1,6 +1,7 @@
 import sqlite3
 
 address_info = []
+location_data = []
 
 
 def read_file():
@@ -23,11 +24,13 @@ def read_file():
 def get_information(splited_data):
     swine = None
     soi = None
+    road = None
     for x, y in enumerate(splited_data):
         if (("ม." in y) and ("กทม." not in y)) \
                 or (("หมู่" in y) and ("หมู่บ้าน" not in y)):
             if y == "หมู่" or y == 'ม.':
                 swine = splited_data[x + 1]
+
             else:
                 swine = find_swine(y)
                 for q, u in enumerate(swine):
@@ -36,7 +39,19 @@ def get_information(splited_data):
                         swine = swine[0:q]
                         break
 
-    return {"swine": swine, "soi": soi}
+        elif "ซ." in y or "ซอย" in y:
+            if y == 'ซอย.' or y == 'ซ.':
+                soi = splited_data[x + 1]
+            else:
+                soi = find_soi(y)
+
+        elif 'ถนน' in y or 'ถ.' in y:
+            if y == 'ถนน':
+                road = splited_data[x + 1]
+            else:
+                road = find_road(y)
+
+    return {"swine": swine, "soi": soi, "road": road}
 
 
 # Find Swine
@@ -58,20 +73,50 @@ def find_swine(data):
 
 # Find Soi
 def find_soi(data):
-    for x, y in enumerate(data):
-        if "ซ." in y or "ซอย" in y:
-            if y == "ซอย" or y == "ซอย." or y == "ซ.":
-                soi = data[x + 1]
-                return y + soi
+    end_soi = 0
+    for i in range(len(data)):
+        if data[i] == 'ย' or data[i] == '.':
+            end_soi = i + 1
+            break
 
-            else:
-                return y
+    return data[end_soi:None]
 
-    return "ไม่ระบุ"
+
+def find_road(data):
+    end_road = 0
+    for i in range(len(data)):
+        if data[i] == '.':
+            end_road = i + 1
+            break
+        elif data[i] == 'น':
+            end_road = i + 2
+            break
+
+    return data[end_road:None]
 
 
 def find_zone(data):
     return ""
+
+
+def read_database():
+    try:
+        db = "Thai.db"
+        with (sqlite3.connect(db)) as conn:
+            conn.row_factory = sqlite3.Row
+            sql_command = """SELECT * FROM Location_Thai"""
+            cursor = conn.execute(sql_command)
+            for i in cursor:
+                location_data.append({"Province": i["Province"],
+                                      "District": i["District"],
+                                      "PostalCode": i["PostalCode"]})
+
+        print(location_data)
+
+    except Exception as e:
+        print("Error {}".format(e))
+
+    return location_data
 
 
 def insert_to_database(data):
@@ -85,4 +130,5 @@ def insert_to_database(data):
 
 
 if __name__ == '__main__':
+    read_database()
     read_file()
