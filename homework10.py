@@ -25,6 +25,8 @@ def get_information(splited_data):
     swine = None
     soi = None
     road = None
+    zone = None
+    province = None
     for x, y in enumerate(splited_data):
         if (("ม." in y) and ("กทม." not in y)) \
                 or (("หมู่" in y) and ("หมู่บ้าน" not in y)):
@@ -51,7 +53,17 @@ def get_information(splited_data):
             else:
                 road = find_road(y)
 
-    return {"swine": swine, "soi": soi, "road": road}
+        elif 'เขต' in y or 'อ.' in y:
+            zone = find_zone(y)
+
+        else:
+            for i in location_data:
+                if y in i["Zone"] and y != "" and y not in i["Province"] and y != "เมือง":
+                    print("ZONE = {}".format(y))
+                    zone = y
+                    break
+
+    return {"swine": swine, "soi": soi, "road": road, "zone": zone}
 
 
 # Find Swine
@@ -96,7 +108,17 @@ def find_road(data):
 
 
 def find_zone(data):
-    return ""
+    end_zone = 0
+    for i in range(len(data)):
+        if data[i] == '.':
+            end_zone = i + 1
+            break
+
+        elif data[i] == 'ต':
+            end_zone = i + 1
+            break
+
+    return data[end_zone:None]
 
 
 def read_database():
@@ -109,7 +131,8 @@ def read_database():
             for i in cursor:
                 location_data.append({"Province": i["Province"],
                                       "District": i["District"],
-                                      "PostalCode": i["PostalCode"]})
+                                      "PostalCode": i["PostalCode"],
+                                      "Zone": i["Zone"]})
 
         print(location_data)
 
