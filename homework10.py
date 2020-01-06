@@ -1,4 +1,5 @@
 import sqlite3
+import re
 
 address_info = []
 location_data = []
@@ -7,7 +8,7 @@ location_data = []
 def read_file():
     try:
         with open("RawAddressData.txt", "r", encoding="utf16") as f:
-            read_data = f.readlines()
+            read_data = f.read().splitlines()
             for i in read_data:
                 split_data = i.split(" ")
                 print(get_information(split_data))
@@ -22,11 +23,14 @@ def read_file():
 
 
 def get_information(splited_data):
+    address= None
     swine = None
     soi = None
     road = None
     zone = None
     province = None
+    postal_code = None
+
     for x, y in enumerate(splited_data):
         if (("ม." in y) and ("กทม." not in y)) \
                 or (("หมู่" in y) and ("หมู่บ้าน" not in y)):
@@ -56,14 +60,29 @@ def get_information(splited_data):
         elif 'เขต' in y or 'อ.' in y:
             zone = find_zone(y)
 
+        elif 'จ.' in y:
+            province = find_province(y)
+
         else:
             for i in location_data:
-                if y in i["Zone"] and y != "" and y not in i["Province"] and y != "เมือง":
-                    print("ZONE = {}".format(y))
-                    zone = y
-                    break
+                if y != "":
+                    if y in i["Zone"] and y not in i["Province"] and y != "เมือง":
+                        zone = y
+                        break
 
-    return {"swine": swine, "soi": soi, "road": road, "zone": zone}
+                    elif y in i["Province"]:
+                        province = y
+                        break
+
+                    elif y in i["PostalCode"] and len(y) == 5:
+                        postal_code = y
+                        break
+
+            result = re.search(r'/', y)
+            if result:
+                address = y
+
+    return {"address": address, "swine": swine, "soi": soi, "road": road, "zone": zone, "province": province, "postalcode": postal_code}
 
 
 # Find Swine
@@ -121,6 +140,14 @@ def find_zone(data):
     return data[end_zone:None]
 
 
+def find_province(data):
+    end_zone = 0
+    for i in range(len(data)):
+        if data[i] == '.':
+            end_zone = i + 1
+    return data[end_zone:None]
+
+
 def read_database():
     try:
         db = "Thai.db"
@@ -131,10 +158,9 @@ def read_database():
             for i in cursor:
                 location_data.append({"Province": i["Province"],
                                       "District": i["District"],
-                                      "PostalCode": i["PostalCode"],
+                                      "PostalCode": str(i["PostalCode"]),
                                       "Zone": i["Zone"]})
-
-        print(location_data)
+            print(location_data)
 
     except Exception as e:
         print("Error {}".format(e))
@@ -155,3 +181,9 @@ def insert_to_database(data):
 if __name__ == '__main__':
     read_database()
     read_file()
+    txt = '14/6  asdf 111 ถ.ลาดพร้าวแขวงคลองจั่น เขตลาดพร้าว 10240'
+    # result = re.search(r'/', txt)
+    # if result:
+    #     print("YES")
+    # else:
+    #     print("NO")
