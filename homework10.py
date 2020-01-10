@@ -9,31 +9,43 @@ def read_file():
     try:
         with open("RawAddressData.txt", "r", encoding="utf16") as f:
             read_data = f.read().splitlines()
+            print("Processing! Reading file...")
             for i in read_data:
                 split_data = i.split(" ")
-                print(get_information(split_data))
-                # print(split_data)
+                data = get_information(split_data)
+                address_info.append(data)
 
+        print("This is result :")
         for i in address_info:
             print(i)
-        # insert_to_database(data)data[1]
+
+        print("-" * 30)
+        choice = input("Do you want to add data to database?[y][n] : ")
+        if choice.lower() == 'y':
+            print("Inserting data Please wait!")
+            insert_to_database(address_info)
+
+        else:
+            print("OK, We won't insert data to database")
 
     except Exception as e:
         print("Error {}".format(e))
 
 
 def get_information(splited_data):
-    address= None
+    address = None
     swine = None
     soi = None
     road = None
+    sub_district = None
     zone = None
     province = None
     postal_code = None
 
     for x, y in enumerate(splited_data):
-        if (("ม." in y) and ("กทม." not in y)) \
-                or (("หมู่" in y) and ("หมู่บ้าน" not in y)):
+        result = re.search(r'/', y)
+        number = re.search(r'[0-9]', y)
+        if ((("ม." in y) and ("กทม." not in y)) or (("หมู่" in y) and ("หมู่บ้าน" not in y))) and not result and swine is None:
             if y == "หมู่" or y == 'ม.':
                 swine = splited_data[x + 1]
 
@@ -45,22 +57,35 @@ def get_information(splited_data):
                         swine = swine[0:q]
                         break
 
-        elif "ซ." in y or "ซอย" in y:
+        elif ("ซ." in y or "ซอย" in y) and soi is None:
             if y == 'ซอย.' or y == 'ซ.':
                 soi = splited_data[x + 1]
             else:
-                soi = find_soi(y)
+                try:
+                    if re.search(r'[0-9]|/', splited_data[x+1]):
+                        soi = find_soi(y) + splited_data[x+1]
+                    else:
+                        soi = find_soi(y)
 
-        elif 'ถนน' in y or 'ถ.' in y:
+                except Exception as e:
+                    ""
+
+        elif ('ถนน' in y or 'ถ.' in y) and road is None:
             if y == 'ถนน':
                 road = splited_data[x + 1]
             else:
                 road = find_road(y)
 
-        elif 'เขต' in y or 'อ.' in y:
+        elif ('ต.' in y or 'แขวง' in y) and sub_district is None:
+            if y == 'แขวง':
+                sub_district = splited_data[x + 1]
+            else:
+                sub_district = find_sub_district(y)
+
+        elif ('เขต' in y or 'อ.' in y) and zone is None:
             zone = find_zone(y)
 
-        elif 'จ.' in y:
+        elif ('จ.' in y) and province is None:
             province = find_province(y)
 
         else:
@@ -78,11 +103,23 @@ def get_information(splited_data):
                         postal_code = y
                         break
 
-            result = re.search(r'/', y)
-            if result:
-                address = y
+            # บ้านเลขที่
+            if (result and address is None) or (number and len(y) < 5 and address is None):
+                if 'ม.' in y:
+                    start_swine = 0
+                    for i in range(len(y)):
+                        if y[i] == 'ม':
+                            start_swine = i
+                            break
 
-    return {"address": address, "swine": swine, "soi": soi, "road": road, "zone": zone, "province": province, "postalcode": postal_code}
+                    address = y[0:start_swine]
+                    swine = find_swine(y[start_swine:None])
+
+                else:
+                    address = y
+
+    return {"address": address, "swine": swine, "soi": soi, "road": road, 'sub_district': sub_district, "zone": zone,
+            "province": province, "postalcode": postal_code}
 
 
 # Find Swine
@@ -126,6 +163,20 @@ def find_road(data):
     return data[end_road:None]
 
 
+def find_sub_district(data):
+    end_sub = 0
+    for i in range(len(data)):
+        if data[i] == '.':
+            end_sub = i + 1
+            break
+
+        elif data[i] == 'ง':
+            end_sub = i + 1
+            break
+
+    return data[end_sub:None]
+
+
 def find_zone(data):
     end_zone = 0
     for i in range(len(data)):
@@ -160,7 +211,6 @@ def read_database():
                                       "District": i["District"],
                                       "PostalCode": str(i["PostalCode"]),
                                       "Zone": i["Zone"]})
-            print(location_data)
 
     except Exception as e:
         print("Error {}".format(e))
@@ -171,8 +221,19 @@ def read_database():
 def insert_to_database(data):
     try:
         with sqlite3.connect("AddressData.db") as conn:
-            sql_command = "INSERT INTO Address VALUES ('10', 'f', 'f', 's', 'a', 's', 'd', 'f', 'p')"
-            conn.executescript(sql_command)
+            for x, i in enumerate(data):
+                sql_command = """INSERT INTO Address(AddressNo, Swine, Soi, Road, District, Area, Province, PostCode)
+                VALUES ('{}', '{}', '{}', '{}', '{}', '{}', '{}', '{}')""".format(i["address"],
+                                                                                  i["swine"],
+                                                                                  i["soi"],
+                                                                                  i["road"],
+                                                                                  i["sub_district"],
+                                                                                  i["zone"],
+                                                                                  i["province"],
+                                                                                  i["postalcode"])
+                conn.executescript(sql_command)
+
+            print("Inserted to Database!")
 
     except Exception as e:
         print("Error {}".format(e))
@@ -181,9 +242,3 @@ def insert_to_database(data):
 if __name__ == '__main__':
     read_database()
     read_file()
-    txt = '14/6  asdf 111 ถ.ลาดพร้าวแขวงคลองจั่น เขตลาดพร้าว 10240'
-    # result = re.search(r'/', txt)
-    # if result:
-    #     print("YES")
-    # else:
-    #     print("NO")
